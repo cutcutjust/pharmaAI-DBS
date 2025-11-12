@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 智药AI{% endblock %}
+
+{% block head_styles %}
+{{ super() }}
+<style>
+    /* 首页专属样式 */
+    .hero-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 80px 0;
+        margin: 0 -16px 40px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        opacity: 0.3;
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 1;
+    }
+
+    .hero-section h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .hero-section p {
+        font-size: 1.25rem;
+        margin-bottom: 2rem;
+        opacity: 0.95;
+    }
+
+    .hero-stats {
+        display: flex;
+        justify-content: center;
+        gap: 60px;
+        margin-top: 40px;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 1rem;
+        opacity: 0.9;
+    }
+
+    .feature-card {
+        border: none;
+        border-radius: 16px;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        height: 100%;
+        background: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+    }
+
+    .feature-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .feature-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        margin: 0 auto 20px;
+        position: relative;
+        transition: all 0.3s ease;
+    }
+
+    .feature-card:hover .feature-icon {
+        transform: scale(1.1) rotate(5deg);
+    }
+
+    .feature-icon.icon-purple {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .feature-icon.icon-blue {
+        background: linear-gradient(135deg, #0093E9 0%, #80D0C7 100%);
+        color: white;
+    }
+
+    .feature-icon.icon-green {
+        background: linear-gradient(135deg, #00D2FF 0%, #3A47D5 100%);
+        color: white;
+    }
+
+    .feature-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #2d3748;
+        margin-bottom: 1rem;
+    }
+
+    .feature-description {
+        color: #718096;
+        line-height: 1.7;
+        margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+        text-align: center;
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2d3748;
+        margin-bottom: 3rem;
+        position: relative;
+        padding-bottom: 1rem;
+    }
+
+    .section-title::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80px;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        border-radius: 2px;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+        margin-top: 40px;
+    }
+
+    .info-item {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+
+    .info-item:hover {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        transform: translateY(-5px);
+    }
+
+    .info-item i {
+        font-size: 2.5rem;
+        color: #667eea;
+        margin-bottom: 15px;
+    }
+
+    .info-item h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 10px;
+    }
+
+    .info-item p {
+        color: #718096;
+        margin: 0;
+        font-size: 0.95rem;
+    }
+
+    .cta-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 60px 0;
+        margin: 60px -16px -32px;
+        text-align: center;
+        border-radius: 20px 20px 0 0;
+    }
+
+    .cta-section h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+    }
+
+    .cta-section p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+    }
+
+    @media (max-width: 768px) {
+        .hero-section h1 {
+            font-size: 2rem;
+        }
+
+        .hero-stats {
+            gap: 30px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* 动画效果 */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-fade-in {
+        animation: fadeInUp 0.8s ease-out;
+    }
+
+    .animate-delay-1 {
+        animation-delay: 0.1s;
+        opacity: 0;
+        animation-fill-mode: forwards;
+    }
+
+    .animate-delay-2 {
+        animation-delay: 0.2s;
+        opacity: 0;
+        animation-fill-mode: forwards;
+    }
+
+    .animate-delay-3 {
+        animation-delay: 0.3s;
+        opacity: 0;
+        animation-fill-mode: forwards;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="container hero-content">
+        <div class="text-center animate-fade-in">
+            <h1><i class="fas fa-brain me-3"></i>智药AI</h1>
+            <p class="lead">AI驱动 · 智能对话 · 10万+对话数据赋能的智慧药典平台</p>
+            <div class="mt-4">
+                <a href="{{ url_for('experiment_list_page') }}" class="btn btn-light btn-lg me-3 px-5 py-3">
+                    <i class="fas fa-flask me-2"></i>开始实验
+                </a>
+                <a href="{{ url_for('conversation_search_page') }}" class="btn btn-outline-light btn-lg px-5 py-3">
+                    <i class="fas fa-comments me-2"></i>查询对话
+                </a>
+            </div>
+        </div>
+
+        <!-- 数据统计 -->
+        <div class="hero-stats animate-fade-in">
+            <div class="stat-item">
+                <span class="stat-number">186,666+</span>
+                <span class="stat-label">数据记录</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">103,794+</span>
+                <span class="stat-label">对话消息</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">15,000+</span>
+                <span class="stat-label">实验记录</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">6,283</span>
+                <span class="stat-label">药典条目</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 核心功能 -->
+<section class="container my-5">
+    <h2 class="section-title">核心功能</h2>
+    <div class="row g-4">
+        <div class="col-md-4 animate-fade-in animate-delay-1">
+            <div class="feature-card">
+                <div class="card-body p-4 text-center">
+                    <div class="feature-icon icon-purple">
+                        <i class="fas fa-flask"></i>
+                    </div>
+                    <h3 class="feature-title">实验管理</h3>
+                    <p class="feature-description">
+                        全面的实验记录管理系统，支持实验数据采集、分析、统计与报表生成，
+                        确保实验过程可追溯、数据可靠。
+                    </p>
+                    <a href="{{ url_for('experiment_list_page') }}" class="btn btn-primary px-4">
+                        进入模块 <i class="fas fa-arrow-right ms-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 animate-fade-in animate-delay-2">
+            <div class="feature-card">
+                <div class="card-body p-4 text-center">
+                    <div class="feature-icon icon-blue">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <h3 class="feature-title">对话查询</h3>
+                    <p class="feature-description">
+                        智能语音对话历史记录与检索系统，支持多维度查询、
+                        语义分析与知识图谱关联，快速定位药典信息。
+                    </p>
+                    <a href="{{ url_for('conversation_search_page') }}" class="btn btn-primary px-4">
+                        进入模块 <i class="fas fa-arrow-right ms-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 animate-fade-in animate-delay-3">
+            <div class="feature-card">
+                <div class="card-body p-4 text-center">
+                    <div class="feature-icon icon-green">
+                        <i class="fas fa-cog"></i>
+                    </div>
+                    <h3 class="feature-title">系统配置</h3>
+                    <p class="feature-description">
+                        灵活的系统参数配置与管理，支持显示设置、安全策略、
+                        性能优化等多种配置项，满足不同场景需求。
+                    </p>
+                    <a href="{{ url_for('settings_page') }}" class="btn btn-primary px-4">
+                        进入模块 <i class="fas fa-arrow-right ms-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 系统特色 -->
+<section class="container my-5 py-5">
+    <h2 class="section-title">系统特色</h2>
+    <div class="info-grid">
+        <div class="info-item">
+            <i class="fas fa-database"></i>
+            <h4>海量数据支持</h4>
+            <p>支持18万+数据记录，9张核心数据表，满足复杂业务需求</p>
+        </div>
+        <div class="info-item">
+            <i class="fas fa-link"></i>
+            <h4>复杂关系建模</h4>
+            <p>涵盖1-1、1-N、N-M关系，完整的实体关系设计</p>
+        </div>
+        <div class="info-item">
+            <i class="fas fa-bolt"></i>
+            <h4>高性能索引</h4>
+            <p>多字段索引优化，查询响应迅速，支持高并发访问</p>
+        </div>
+        <div class="info-item">
+            <i class="fas fa-shield-alt"></i>
+            <h4>事务支持</h4>
+            <p>完整的ACID事务保证，确保数据一致性与可靠性</p>
+        </div>
+        <div class="info-item">
+            <i class="fas fa-chart-line"></i>
+            <h4>性能监控</h4>
+            <p>实时性能监控，多用户并发测试，全面的性能分析</p>
+        </div>
+        <div class="info-item">
+            <i class="fas fa-book-open"></i>
+            <h4>2025版药典</h4>
+            <p>基于最新2025版中国药典，涵盖四部完整内容</p>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<div class="cta-section">
+    <div class="container">
+        <h2><i class="fas fa-lightbulb me-2"></i>开始使用智药AI</h2>
+        <p>AI赋能药品检测 · 智能对话驱动数据洞察</p>
+        <div>
+            <a href="{{ url_for('readme') }}" class="btn btn-light btn-lg px-5 me-3">
+                <i class="fas fa-book me-2"></i>查看文档
+            </a>
+            <a href="{{ url_for('experiment_list_page') }}" class="btn btn-outline-light btn-lg px-5">
+                <i class="fas fa-rocket me-2"></i>立即开始
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_scripts %}
+{{ super() }}
+<script>
+    // 页面加载动画
+    document.addEventListener('DOMContentLoaded', function() {
+        // 数字滚动动画
+        const animateNumbers = () => {
+            const statNumbers = document.querySelectorAll('.stat-number');
+            statNumbers.forEach(stat => {
+                const target = parseInt(stat.textContent.replace(/,|\+/g, ''));
+                let current = 0;
+                const increment = target / 50;
+                const timer = setInterval(() => {
+                    current += increment;
+                    if (current >= target) {
+                        current = target;
+                        clearInterval(timer);
+                    }
+                    // 格式化数字
+                    const formatted = Math.floor(current).toLocaleString('en-US');
+                    stat.textContent = stat.textContent.includes('+') ? formatted + '+' : formatted;
+                }, 30);
+            });
+        };
+
+        // 延迟执行数字动画
+        setTimeout(animateNumbers, 500);
+
+        // 卡片悬停效果增强
+        const featureCards = document.querySelectorAll('.feature-card');
+        featureCards.forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-10px) scale(1.02)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+    });
+</script>
+{% endblock %}
+

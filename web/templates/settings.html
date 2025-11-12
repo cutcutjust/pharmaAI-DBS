@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}系统设置 - 智药AI{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 页面标题 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-cog me-2"></i>系统设置</h2>
+        <div>
+            <button class="btn btn-success" onclick="window.location.reload()">
+                <i class="fas fa-sync-alt me-1"></i>刷新
+            </button>
+        </div>
+    </div>
+
+    <!-- 配置分类筛选 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-12">
+                    <label class="form-label"><i class="fas fa-filter me-1"></i>配置分类</label>
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('settings_page') }}" 
+                           class="btn btn-outline-primary {% if current_category == 'all' %}active{% endif %}">
+                            全部
+                        </a>
+                        {% for cat in categories %}
+                        <a href="{{ url_for('settings_page', category=cat) }}" 
+                           class="btn btn-outline-primary {% if current_category == cat %}active{% endif %}">
+                            {{ cat }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 配置列表 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-list me-2"></i>配置项列表
+                <span class="badge bg-primary ms-2">共 {{ configs|length }} 项</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if configs %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 20%;">配置键</th>
+                            <th style="width: 20%;">配置值</th>
+                            <th style="width: 10%;">类型</th>
+                            <th style="width: 25%;">描述</th>
+                            <th style="width: 10%;">分类</th>
+                            <th style="width: 10%;">更新者</th>
+                            <th style="width: 5%;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for config in configs %}
+                        <tr id="config-row-{{ loop.index }}">
+                            <td>
+                                <code>{{ config.config_key }}</code>
+                            </td>
+                            <td>
+                                <span class="config-value" id="value-{{ loop.index }}">
+                                    {{ config.config_value }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ config.config_type }}</span>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ config.description or '无描述' }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ config.category }}</span>
+                            </td>
+                            <td>
+                                <small>
+                                    {{ config.updated_by or '未知' }}<br>
+                                    <span class="text-muted" style="font-size: 0.85em;">
+                                        {{ config.updated_at.strftime('%Y-%m-%d %H:%M') if config.updated_at else '-' }}
+                                    </span>
+                                </small>
+                            </td>
+                            <td>
+                                {% if config.is_editable %}
+                                <button class="btn btn-sm btn-primary" 
+                                        onclick="editConfig('{{ config.config_key }}', '{{ config.config_value }}', '{{ config.config_type }}', {{ loop.index }})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                {% else %}
+                                <button class="btn btn-sm btn-secondary" disabled title="不可编辑">
+                                    <i class="fas fa-lock"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center" role="alert">
+                <i class="fas fa-info-circle me-2"></i>暂无配置项
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 1-1关系说明 -->
+    <div class="alert alert-info mt-4" role="alert">
+        <h6><i class="fas fa-lightbulb me-2"></i>设计说明：1-1关系实现</h6>
+        <p class="mb-0">
+            本系统配置表采用 <strong>config_key</strong> 作为主键，确保每个配置项（键）在表中<strong>唯一存在</strong>，
+            体现了<strong>1对1关系</strong>：一个配置键对应唯一一条配置记录。这是典型的1-1关系设计模式。
+        </p>
+    </div>
+</div>
+
+<!-- 编辑配置模态框 -->
+<div class="modal fade" id="editConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>编辑配置
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editConfigForm">
+                    <div class="mb-3">
+                        <label class="form-label">配置键</label>
+                        <input type="text" class="form-control" id="edit_config_key" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">配置值</label>
+                        <input type="text" class="form-control" id="edit_config_value" required>
+                        <small class="form-text text-muted">类型: <span id="edit_config_type"></span></small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">更新者</label>
+                        <input type="text" class="form-control" id="edit_updated_by" value="系统管理员">
+                    </div>
+                    <input type="hidden" id="edit_row_index">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>取消
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveConfig()">
+                    <i class="fas fa-save me-1"></i>保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block footer_scripts %}
+{{ super() }}
+<script>
+    // 编辑配置
+    function editConfig(configKey, configValue, configType, rowIndex) {
+        document.getElementById('edit_config_key').value = configKey;
+        document.getElementById('edit_config_value').value = configValue;
+        document.getElementById('edit_config_type').textContent = configType;
+        document.getElementById('edit_row_index').value = rowIndex;
+        
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('editConfigModal'));
+        modal.show();
+    }
+
+    // 保存配置
+    function saveConfig() {
+        const configKey = document.getElementById('edit_config_key').value;
+        const configValue = document.getElementById('edit_config_value').value;
+        const updatedBy = document.getElementById('edit_updated_by').value;
+        const rowIndex = document.getElementById('edit_row_index').value;
+        
+        // 发送更新请求
+        fetch('/api/config/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                config_key: configKey,
+                config_value: configValue,
+                updated_by: updatedBy
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新页面上的值
+                document.getElementById('value-' + rowIndex).textContent = configValue;
+                
+                // 关闭模态框
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editConfigModal'));
+                modal.hide();
+                
+                // 显示成功消息
+                window.showToast('配置更新成功', 'success');
+                
+                // 刷新页面
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                window.showToast('更新失败: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('更新配置失败:', error);
+            window.showToast('更新失败: ' + error, 'error');
+        });
+    }
+
+    // 页面加载时的初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('系统设置页面加载完成');
+    });
+</script>
+{% endblock %}
+

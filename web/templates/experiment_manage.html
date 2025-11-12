@@ -1,0 +1,762 @@
+<!--
+实验管理页面模板(Experiment Management Page Template)
+
+本模板提供实验记录管理功能的前端界面，用于创建、查询、修改和删除实验记录，
+是智药AI系统的另一个主要用户界面，满足课程要求的业务实现。
+
+使用方法:
+    1. 在路由处理函数中渲染此模板:
+       
+       @app.route('/experiments')
+       def experiment_list_page():
+           return render_template(
+               'experiment_manage.html',
+               experiments=experiments_list,
+               inspectors=inspectors_list,
+               laboratories=laboratories_list,
+               items=pharmacopoeia_items
+           )
+       
+    2. 传递以下上下文变量:
+       - experiments: 实验记录列表，用于展示实验列表
+       - inspectors: 药检员列表，用于填充表单选择框
+       - laboratories: 实验室列表，用于填充表单选择框
+       - items: 药典条目列表，用于填充表单选择框
+       - current_experiment: (可选) 当前正在编辑的实验，用于填充编辑表单
+       - data_points: (可选) 当前实验的数据点列表，用于详情查看
+       - error_message: (可选) 错误消息，用于显示操作失败信息
+       - success_message: (可选) 成功消息，用于显示操作成功信息
+
+主要功能:
+    - 实验列表区域: 
+        以表格形式展示实验记录列表，包含实验编号、药检员、药品、日期、状态等信息
+        
+    - 新增实验功能: 
+        提供创建新实验记录的表单，包括实验基本信息和数据点信息
+        
+    - 编辑实验功能: 
+        提供编辑已有实验记录的表单，可更新实验状态、结果和结论
+        
+    - 删除实验功能: 
+        提供删除实验记录的按钮，带确认对话框
+        
+    - 实验详情查看: 
+        点击实验行可查看该实验的详细信息，包括基本信息和所有数据点
+
+页面结构:
+    - 页面标题和功能按钮
+    - 实验记录筛选区域
+    - 实验记录列表表格
+    - 新增实验表单（模态框）
+    - 编辑实验表单（模态框）
+    - 实验详情查看（模态框）
+    - 删除确认对话框
+-->
+
+{% extends "base.html" %}
+
+{% block title %}实验记录管理 - 智药AI{% endblock %}
+
+{% block content %}
+<!-- 页面标题和功能按钮 -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2"><i class="fas fa-flask me-2"></i>实验记录管理</h1>
+    <div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newExperimentModal">
+            <i class="fas fa-plus me-1"></i>新增实验
+        </button>
+        <button type="button" class="btn btn-outline-secondary ms-2" id="refreshButton">
+            <i class="fas fa-sync me-1"></i>刷新
+        </button>
+    </div>
+</div>
+
+<!-- 实验记录筛选区域 -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <i class="fas fa-filter me-1"></i>筛选条件
+    </div>
+    <div class="card-body">
+        <form id="filterForm" class="row g-3">
+            <div class="col-md-3">
+                <label for="filterInspector" class="form-label">药检员</label>
+                <select class="form-select" id="filterInspector" name="inspector_id">
+                    <option value="">全部</option>
+                    {% for inspector in inspectors %}
+                    <option value="{{ inspector.id }}">{{ inspector.id }} - {{ inspector.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filterLaboratory" class="form-label">实验室</label>
+                <select class="form-select" id="filterLaboratory" name="laboratory_id">
+                    <option value="">全部</option>
+                    {% for lab in laboratories %}
+                    <option value="{{ lab.id }}">{{ lab.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filterItem" class="form-label">药品</label>
+                <select class="form-select" id="filterItem" name="item_id">
+                    <option value="">全部</option>
+                    {% for item in items %}
+                    <option value="{{ item.id }}">{{ item.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filterStatus" class="form-label">状态</label>
+                <select class="form-select" id="filterStatus" name="status">
+                    <option value="">全部</option>
+                    <option value="进行中">进行中</option>
+                    <option value="已完成">已完成</option>
+                    <option value="已取消">已取消</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filterDateStart" class="form-label">起始日期</label>
+                <input type="date" class="form-control" id="filterDateStart" name="date_start">
+            </div>
+            <div class="col-md-3">
+                <label for="filterDateEnd" class="form-label">结束日期</label>
+                <input type="date" class="form-control" id="filterDateEnd" name="date_end">
+            </div>
+            <div class="col-md-4">
+                <label for="filterKeyword" class="form-label">关键词</label>
+                <input type="text" class="form-control" id="filterKeyword" name="keyword" placeholder="实验标题、描述或结果">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-search me-1"></i>查询
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 实验记录列表表格 -->
+<div class="card">
+    <div class="card-header bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-list me-1"></i>实验记录列表
+            </div>
+            {% if experiments %}
+            <div>
+                {% if pagination %}
+                共 <span class="fw-bold">{{ pagination.total_count }}</span> 条记录
+                <span class="text-muted">（第 {{ ((pagination.page - 1) * pagination.per_page) + 1 }} - {{ min(pagination.page * pagination.per_page, pagination.total_count) }} 条）</span>
+                {% else %}
+                共 <span class="fw-bold">{{ experiments|length }}</span> 条记录
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>编号</th>
+                        <th>标题</th>
+                        <th>药检员</th>
+                        <th>药品</th>
+                        <th>日期</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if experiments %}
+                    {% for experiment in experiments %}
+                    <tr class="experiment-row" data-id="{{ experiment.id }}">
+                        <td>{{ experiment.id }}</td>
+                        <td>{{ experiment.title }}</td>
+                        <td>{% if experiment.inspector_id %}{{ experiment.inspector_id }} - {% endif %}{{ experiment.inspector_name }}</td>
+                        <td>{{ experiment.item_name }}</td>
+                        <td>{{ experiment.date }}</td>
+                        <td>
+                            {% if experiment.status == '进行中' %}
+                            <span class="badge bg-primary">进行中</span>
+                            {% elif experiment.status == '已完成' %}
+                            <span class="badge bg-success">已完成</span>
+                            {% else %}
+                            <span class="badge bg-secondary">已取消</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-primary view-btn" 
+                                        data-bs-toggle="modal" data-bs-target="#viewExperimentModal" 
+                                        data-id="{{ experiment.id }}">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-warning edit-btn" 
+                                        data-bs-toggle="modal" data-bs-target="#editExperimentModal" 
+                                        data-id="{{ experiment.id }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger delete-btn" 
+                                        data-bs-toggle="modal" data-bs-target="#deleteConfirmModal" 
+                                        data-id="{{ experiment.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">暂无实验记录数据</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 分页控件 -->
+    {% if pagination and pagination.total_count > 0 %}
+    <div class="card-footer bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <label class="me-2">每页显示：</label>
+                <select class="form-select form-select-sm d-inline-block" style="width: auto;" id="perPageSelect">
+                    <option value="10" {% if pagination.per_page == 10 %}selected{% endif %}>10条</option>
+                    <option value="20" {% if pagination.per_page == 20 %}selected{% endif %}>20条</option>
+                    <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50条</option>
+                    <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100条</option>
+                </select>
+            </div>
+            {% if pagination.pages > 1 %}
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item {% if pagination.page == 1 %}disabled{% endif %}">
+                        {% if pagination.page > 1 %}
+                        <a class="page-link" href="{{ url_for('experiment_list_page', page=pagination.page-1, per_page=pagination.per_page, inspector_id=request.args.get('inspector_id'), laboratory_id=request.args.get('laboratory_id'), item_id=request.args.get('item_id'), status=request.args.get('status'), date_start=request.args.get('date_start'), date_end=request.args.get('date_end'), keyword=request.args.get('keyword')) }}">上一页</a>
+                        {% else %}
+                        <span class="page-link">上一页</span>
+                        {% endif %}
+                    </li>
+                    
+                    {% for p in range(max(1, pagination.page - 2), min(pagination.pages + 1, pagination.page + 3)) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('experiment_list_page', page=p, per_page=pagination.per_page, inspector_id=request.args.get('inspector_id'), laboratory_id=request.args.get('laboratory_id'), item_id=request.args.get('item_id'), status=request.args.get('status'), date_start=request.args.get('date_start'), date_end=request.args.get('date_end'), keyword=request.args.get('keyword')) }}">{{ p }}</a>
+                    </li>
+                    {% endfor %}
+                    
+                    <li class="page-item {% if pagination.page == pagination.pages %}disabled{% endif %}">
+                        {% if pagination.page < pagination.pages %}
+                        <a class="page-link" href="{{ url_for('experiment_list_page', page=pagination.page+1, per_page=pagination.per_page, inspector_id=request.args.get('inspector_id'), laboratory_id=request.args.get('laboratory_id'), item_id=request.args.get('item_id'), status=request.args.get('status'), date_start=request.args.get('date_start'), date_end=request.args.get('date_end'), keyword=request.args.get('keyword')) }}">下一页</a>
+                        {% else %}
+                        <span class="page-link">下一页</span>
+                        {% endif %}
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 新增实验表单（模态框） -->
+<div class="modal fade" id="newExperimentModal" tabindex="-1" aria-labelledby="newExperimentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newExperimentModalLabel">
+                    <i class="fas fa-plus-circle me-2"></i>新增实验记录
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form id="newExperimentForm" action="{{ url_for('create_experiment') }}" method="post">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="newTitle" class="form-label">实验标题 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="newTitle" name="title" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="newInspector" class="form-label">药检员 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="newInspector" name="inspector_id" required>
+                                <option value="">请选择药检员</option>
+                                {% for inspector in inspectors %}
+                                <option value="{{ inspector.id }}">{{ inspector.id }} - {{ inspector.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="newItem" class="form-label">药品 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="newItem" name="item_id" required>
+                                <option value="">请选择药品</option>
+                                {% for item in items %}
+                                <option value="{{ item.id }}">{{ item.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="newLaboratory" class="form-label">实验室</label>
+                            <select class="form-select" id="newLaboratory" name="laboratory_id">
+                                <option value="">请选择实验室</option>
+                                {% for lab in laboratories %}
+                                <option value="{{ lab.id }}">{{ lab.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="newDate" class="form-label">实验日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="newDate" name="date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="newStatus" class="form-label">状态 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="newStatus" name="status" required>
+                                <option value="进行中" selected>进行中</option>
+                                <option value="已完成">已完成</option>
+                                <option value="已取消">已取消</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="newDescription" class="form-label">实验描述</label>
+                        <textarea class="form-control" id="newDescription" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6 class="mb-3">数据点信息</h6>
+                    <div id="dataPointsContainer">
+                        <div class="data-point-row row mb-2">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" name="data_point_value[]" placeholder="数值">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="data_point_unit[]" placeholder="单位">
+                            </div>
+                            <div class="col-md-4">
+                                <input type="datetime-local" class="form-control" name="data_point_timestamp[]">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-outline-danger remove-data-point">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="button" id="addDataPoint" class="btn btn-outline-primary btn-sm mt-2">
+                        <i class="fas fa-plus me-1"></i>添加数据点
+                    </button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑实验表单（模态框） -->
+<div class="modal fade" id="editExperimentModal" tabindex="-1" aria-labelledby="editExperimentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editExperimentModalLabel">
+                    <i class="fas fa-edit me-2"></i>编辑实验记录
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form id="editExperimentForm" action="" method="post">
+                <div class="modal-body">
+                    <input type="hidden" id="editId" name="id" value="">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="editTitle" class="form-label">实验标题 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="editTitle" name="title" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editInspector" class="form-label">药检员 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="editInspector" name="inspector_id" required>
+                                {% for inspector in inspectors %}
+                                <option value="{{ inspector.id }}">{{ inspector.id }} - {{ inspector.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="editItem" class="form-label">药品 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="editItem" name="item_id" required>
+                                {% for item in items %}
+                                <option value="{{ item.id }}">{{ item.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editLaboratory" class="form-label">实验室</label>
+                            <select class="form-select" id="editLaboratory" name="laboratory_id">
+                                <option value="">请选择实验室</option>
+                                {% for lab in laboratories %}
+                                <option value="{{ lab.id }}">{{ lab.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="editDate" class="form-label">实验日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="editDate" name="date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editStatus" class="form-label">状态 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="editStatus" name="status" required>
+                                <option value="进行中">进行中</option>
+                                <option value="已完成">已完成</option>
+                                <option value="已取消">已取消</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editDescription" class="form-label">实验描述</label>
+                        <textarea class="form-control" id="editDescription" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editResults" class="form-label">实验结果</label>
+                        <textarea class="form-control" id="editResults" name="results" rows="3"></textarea>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6 class="mb-3">数据点信息</h6>
+                    <div id="editDataPointsContainer">
+                        <!-- 动态填充数据点 -->
+                    </div>
+                    
+                    <button type="button" id="editAddDataPoint" class="btn btn-outline-primary btn-sm mt-2">
+                        <i class="fas fa-plus me-1"></i>添加数据点
+                    </button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 实验详情查看（模态框） -->
+<div class="modal fade" id="viewExperimentModal" tabindex="-1" aria-labelledby="viewExperimentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewExperimentModalLabel">
+                    <i class="fas fa-clipboard-list me-2"></i>实验记录详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">实验编号</dt>
+                            <dd class="col-sm-8" id="viewId"></dd>
+                            
+                            <dt class="col-sm-4">实验标题</dt>
+                            <dd class="col-sm-8" id="viewTitle"></dd>
+                            
+                            <dt class="col-sm-4">药检员</dt>
+                            <dd class="col-sm-8" id="viewInspector"></dd>
+                            
+                            <dt class="col-sm-4">药品</dt>
+                            <dd class="col-sm-8" id="viewItem"></dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">实验室</dt>
+                            <dd class="col-sm-8" id="viewLaboratory"></dd>
+                            
+                            <dt class="col-sm-4">实验日期</dt>
+                            <dd class="col-sm-8" id="viewDate"></dd>
+                            
+                            <dt class="col-sm-4">状态</dt>
+                            <dd class="col-sm-8" id="viewStatus"></dd>
+                            
+                            <dt class="col-sm-4">创建时间</dt>
+                            <dd class="col-sm-8" id="viewCreatedAt"></dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h6 class="fw-bold mb-2">实验描述</h6>
+                    <p id="viewDescription" class="border rounded p-3 bg-light"></p>
+                </div>
+                
+                <div class="mb-4">
+                    <h6 class="fw-bold mb-2">实验结果</h6>
+                    <p id="viewResults" class="border rounded p-3 bg-light"></p>
+                </div>
+                
+                <h6 class="fw-bold mb-2">数据点信息</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>数值</th>
+                                <th>单位</th>
+                                <th>时间戳</th>
+                            </tr>
+                        </thead>
+                        <tbody id="viewDataPoints">
+                            <!-- 动态填充数据点 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" id="editFromViewButton">
+                    <i class="fas fa-edit me-1"></i>编辑
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认对话框 -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">
+                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>确认删除
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <p>您确定要删除这条实验记录吗？</p>
+                <p class="text-danger"><strong>警告：</strong>此操作无法撤销，删除后数据将无法恢复！</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form id="deleteExperimentForm" action="" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i>确认删除
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_scripts %}
+{{ super() }}
+<script>
+    $(document).ready(function() {
+        // 添加数据点
+        $('#addDataPoint').click(function() {
+            const row = `
+            <div class="data-point-row row mb-2">
+                <div class="col-md-4">
+                    <input type="text" class="form-control" name="data_point_value[]" placeholder="数值">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="data_point_unit[]" placeholder="单位">
+                </div>
+                <div class="col-md-4">
+                    <input type="datetime-local" class="form-control" name="data_point_timestamp[]">
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-danger remove-data-point">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            `;
+            $('#dataPointsContainer').append(row);
+        });
+        
+        // 移除数据点
+        $(document).on('click', '.remove-data-point', function() {
+            $(this).closest('.data-point-row').remove();
+        });
+        
+        // 编辑实验
+        $('.edit-btn').click(function() {
+            const experimentId = $(this).data('id');
+            $('#editExperimentForm').attr('action', `/experiments/${experimentId}`);
+            
+            // 加载实验数据（AJAX请求）
+            $.getJSON(`/experiments/${experimentId}/json`, function(data) {
+                $('#editId').val(data.id);
+                $('#editTitle').val(data.title);
+                $('#editInspector').val(data.inspector_id);
+                $('#editItem').val(data.item_id);
+                $('#editLaboratory').val(data.laboratory_id);
+                $('#editDate').val(data.date);
+                $('#editStatus').val(data.status);
+                $('#editDescription').val(data.description);
+                $('#editResults').val(data.results);
+                
+                // 清空并重新填充数据点
+                $('#editDataPointsContainer').empty();
+                if (data.data_points && data.data_points.length > 0) {
+                    data.data_points.forEach(function(point, index) {
+                        const row = `
+                        <div class="data-point-row row mb-2">
+                            <input type="hidden" name="data_point_id[]" value="${point.id || ''}">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" name="data_point_value[]" value="${point.value}" placeholder="数值">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="data_point_unit[]" value="${point.unit}" placeholder="单位">
+                            </div>
+                            <div class="col-md-4">
+                                <input type="datetime-local" class="form-control" name="data_point_timestamp[]" value="${point.timestamp.replace(' ', 'T')}">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-outline-danger remove-data-point">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        `;
+                        $('#editDataPointsContainer').append(row);
+                    });
+                }
+            });
+        });
+        
+        // 编辑实验中添加数据点
+        $('#editAddDataPoint').click(function() {
+            const row = `
+            <div class="data-point-row row mb-2">
+                <input type="hidden" name="data_point_id[]" value="">
+                <div class="col-md-4">
+                    <input type="text" class="form-control" name="data_point_value[]" placeholder="数值">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="data_point_unit[]" placeholder="单位">
+                </div>
+                <div class="col-md-4">
+                    <input type="datetime-local" class="form-control" name="data_point_timestamp[]">
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-danger remove-data-point">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            `;
+            $('#editDataPointsContainer').append(row);
+        });
+        
+        // 查看实验详情
+        $('.view-btn').click(function() {
+            const experimentId = $(this).data('id');
+            
+            // 加载实验数据（AJAX请求）
+            $.getJSON(`/experiments/${experimentId}/json`, function(data) {
+                $('#viewId').text(data.id);
+                $('#viewTitle').text(data.title);
+                // 显示药检员ID和姓名
+                const inspectorDisplay = data.inspector_id_display 
+                    ? `${data.inspector_id_display} - ${data.inspector_name}`
+                    : data.inspector_name;
+                $('#viewInspector').text(inspectorDisplay);
+                $('#viewItem').text(data.item_name);
+                $('#viewLaboratory').text(data.laboratory_name || '未指定');
+                $('#viewDate').text(data.date);
+                $('#viewStatus').html(getStatusBadge(data.status));
+                $('#viewCreatedAt').text(data.created_at);
+                $('#viewDescription').text(data.description || '无描述');
+                $('#viewResults').text(data.results || '暂无结果');
+                
+                // 填充数据点
+                $('#viewDataPoints').empty();
+                if (data.data_points && data.data_points.length > 0) {
+                    data.data_points.forEach(function(point, index) {
+                        const row = `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${point.value}</td>
+                            <td>${point.unit}</td>
+                            <td>${point.timestamp}</td>
+                        </tr>
+                        `;
+                        $('#viewDataPoints').append(row);
+                    });
+                } else {
+                    $('#viewDataPoints').html('<tr><td colspan="4" class="text-center">暂无数据点信息</td></tr>');
+                }
+                
+                // 设置编辑按钮
+                $('#editFromViewButton').data('id', data.id);
+            });
+        });
+        
+        // 从详情页跳转到编辑
+        $('#editFromViewButton').click(function() {
+            const experimentId = $(this).data('id');
+            $('#viewExperimentModal').modal('hide');
+            setTimeout(function() {
+                $(`.edit-btn[data-id="${experimentId}"]`).click();
+            }, 500);
+        });
+        
+        // 删除实验
+        $('.delete-btn').click(function() {
+            const experimentId = $(this).data('id');
+            $('#deleteExperimentForm').attr('action', `/experiments/${experimentId}/delete`);
+        });
+        
+        // 辅助函数：获取状态标签
+        function getStatusBadge(status) {
+            switch(status) {
+                case '进行中':
+                    return '<span class="badge bg-primary">进行中</span>';
+                case '已完成':
+                    return '<span class="badge bg-success">已完成</span>';
+                case '已取消':
+                    return '<span class="badge bg-secondary">已取消</span>';
+                default:
+                    return '<span class="badge bg-light text-dark">未知</span>';
+            }
+        }
+        
+        // 每页记录数选择器 - 保留筛选条件并跳转
+        $('#perPageSelect').change(function() {
+            const perPage = $(this).val();
+            // 获取当前URL的所有查询参数
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('per_page', perPage);
+            urlParams.set('page', '1'); // 切换每页记录数时回到第一页
+            // 跳转到新的URL
+            window.location.href = '{{ url_for("experiment_list_page") }}?' + urlParams.toString();
+        });
+        
+        // 刷新按钮
+        $('#refreshButton').click(function() {
+            location.reload();
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,202 @@
+<!--
+基础模板文件(Base Template)
+
+本模板提供智药AI系统Web应用的基础HTML结构和共享组件，
+作为其他页面模板的父模板，提供一致的页面布局和样式。
+
+模板块:
+    - title: 页面标题
+    - head_styles: 头部样式表引用
+    - head_scripts: 头部脚本引用
+    - navbar: 顶部导航栏内容
+    - content: 主要内容区域
+    - footer: 页脚内容
+    - footer_scripts: 底部脚本引用
+-->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}智药AI{% endblock %}</title>
+    
+    {% block head_styles %}
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 图标库 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- 自定义样式 -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    {% endblock %}
+    
+    {% block head_scripts %}
+    <!-- 可选的头部脚本 -->
+    {% endblock %}
+</head>
+<body>
+    <!-- 导航栏 -->
+    {% block navbar %}
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-brain me-2"></i>智药AI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarMain">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('experiment_list_page') }}">
+                            <i class="fas fa-flask me-1"></i>实验管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('conversation_search_page') }}">
+                            <i class="fas fa-comments me-1"></i>对话查询
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('settings_page') }}">
+                            <i class="fas fa-cog me-1"></i>系统配置
+                        </a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <span class="text-light me-3">
+                        <i class="fas fa-user me-1"></i>欢迎，药检员
+                    </span>
+                    <a class="btn btn-outline-light btn-sm" href="#">
+                        <i class="fas fa-sign-out-alt me-1"></i>退出
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endblock %}
+    
+    <!-- 主要内容区域 -->
+    <main class="container py-4">
+        <!-- 页面内容 -->
+        {% block content %}
+        <!-- 主要内容将在继承模板中填充 -->
+        {% endblock %}
+    </main>
+    
+    <!-- 右下角消息提示容器 -->
+    <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;">
+        <!-- Toast消息将动态添加到这里 -->
+    </div>
+    
+    <!-- 页脚 -->
+    {% block footer %}
+    <footer class="footer mt-auto py-3 bg-light">
+        <div class="container text-center">
+            <span class="text-muted">© 2025 智药AI (PharmaAI) | 数据库系统原理课程项目</span>
+            <div class="mt-2">
+                <a href="{{ url_for('readme') }}" class="text-decoration-none text-secondary mx-2">关于我们</a>
+                <a href="{{ url_for('readme') }}" class="text-decoration-none text-secondary mx-2">帮助文档</a>
+                <a href="{{ url_for('readme') }}" class="text-decoration-none text-secondary mx-2">联系方式</a>
+            </div>
+        </div>
+    </footer>
+    {% endblock %}
+    
+    {% block footer_scripts %}
+    <!-- Bootstrap 5 JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- 自定义脚本 -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <!-- Flask Flash消息数据（JSON格式） -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <script type="application/json" id="flashMessages">
+        [
+            {% for category, message in messages %}
+            {
+                "category": {{ category|tojson }},
+                "message": {{ message|tojson }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]
+        </script>
+        {% endif %}
+    {% endwith %}
+    
+    <!-- 处理Flash消息显示为Toast -->
+    <script>
+        // 显示Toast消息的函数
+        function showToast(message, category) {
+            const toastContainer = document.getElementById('toastContainer');
+            
+            // 根据类别设置样式
+            let bgClass = 'bg-danger'; // 默认为红色（错误）
+            let icon = '<i class="fas fa-exclamation-circle me-2"></i>';
+            
+            if (category === 'success') {
+                bgClass = 'bg-success';
+                icon = '<i class="fas fa-check-circle me-2"></i>';
+            } else if (category === 'warning') {
+                bgClass = 'bg-warning';
+                icon = '<i class="fas fa-exclamation-triangle me-2"></i>';
+            } else if (category === 'info') {
+                bgClass = 'bg-info';
+                icon = '<i class="fas fa-info-circle me-2"></i>';
+            }
+            
+            // 创建Toast元素
+            const toastId = 'toast-' + Date.now();
+            const toastHtml = `
+                <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            ${icon}${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="关闭"></button>
+                    </div>
+                </div>
+            `;
+            
+            // 添加Toast到容器
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            
+            // 初始化并显示Toast
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement, {
+                autohide: true,
+                delay: 5000 // 5秒后自动关闭
+            });
+            
+            toast.show();
+            
+            // Toast隐藏后移除元素
+            toastElement.addEventListener('hidden.bs.toast', function () {
+                toastElement.remove();
+            });
+        }
+        
+        // 页面加载时处理Flask Flash消息
+        document.addEventListener('DOMContentLoaded', function() {
+            const flashMessagesElement = document.getElementById('flashMessages');
+            if (flashMessagesElement) {
+                try {
+                    const flashMessages = JSON.parse(flashMessagesElement.textContent);
+                    flashMessages.forEach(function(item) {
+                        showToast(item.message, item.category);
+                    });
+                } catch (e) {
+                    console.error('解析Flash消息失败:', e);
+                }
+            }
+        });
+        
+        // 全局函数，供其他页面调用
+        window.showToast = showToast;
+    </script>
+    {% endblock %}
+</body>
+</html>

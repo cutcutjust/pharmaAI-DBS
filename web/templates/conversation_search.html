@@ -1,0 +1,475 @@
+<!--
+AI对话查询页面模板(AI Conversation Search Page Template)
+
+本模板提供智能对话查询功能的前端界面，用于展示和查询药检员与AI系统的10万+条对话历史，
+是智药AI系统的核心用户界面之一，满足课程要求的一到两个具体业务实现。
+
+使用方法:
+    1. 在路由处理函数中渲染此模板:
+       
+       @app.route('/conversations')
+       def conversation_search_page():
+           return render_template(
+               'conversation_search.html',
+               inspectors=inspectors_list,
+               conversations=recent_conversations
+           )
+       
+    2. 传递以下上下文变量:
+       - inspectors: 药检员列表，用于填充查询表单的下拉选择框
+       - conversations: 对话会话列表，可以是最近的会话或查询结果
+       - query_params: (可选) 当前查询参数，用于保持表单状态
+       - pagination: (可选) 分页信息，用于显示分页控件
+
+主要功能:
+    - 查询表单区域: 
+        提供按药检员、时间范围、关键词等条件查询对话的表单
+        
+    - 查询结果区域: 
+        以表格形式展示查询到的对话会话列表，包含会话ID、药检员、时间、主题等信息
+        
+    - 详情查看功能: 
+        点击会话行可查看该会话的详细消息记录
+        
+    - 导出功能: 
+        提供将查询结果导出为CSV或Excel格式的按钮
+        
+    - 分页功能: 
+        对大量查询结果进行分页显示
+
+页面结构:
+    - 页面标题和说明
+    - 查询条件表单
+    - 查询结果表格
+    - 分页控件
+    - 导出按钮
+    - 详情查看模态框
+-->
+
+{% extends "base.html" %}
+
+{% block title %}AI对话查询 - 智药AI{% endblock %}
+
+{% block content %}
+<!-- 页面标题和说明 -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h2"><i class="fas fa-comments me-2"></i>对话查询</h1>
+        <p class="text-muted">查询药检员与智药AI系统的10万+条历史对话记录</p>
+    </div>
+    <div>
+        <button type="button" class="btn btn-outline-secondary" id="refreshButton">
+            <i class="fas fa-sync me-1"></i>刷新
+        </button>
+    </div>
+</div>
+
+<!-- 查询条件表单 -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <i class="fas fa-search me-1"></i>查询条件
+    </div>
+    <div class="card-body">
+        <form id="searchForm" action="{{ url_for('search_conversations') }}" method="post" class="row g-3">
+            <div class="col-md-4">
+                <label for="inspectorSelect" class="form-label">药检员</label>
+                <select class="form-select" id="inspectorSelect" name="inspector_id">
+                    <option value="">全部</option>
+                    {% for inspector in inspectors %}
+                    <option value="{{ inspector.id }}" {% if query_params and query_params.inspector_id == inspector.id %}selected{% endif %}>
+                        {{ inspector.id }} - {{ inspector.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="startDate" class="form-label">开始日期</label>
+                <input type="date" class="form-control" id="startDate" name="start_date" 
+                       value="{% if query_params and query_params.get('start_date') %}{{ query_params.start_date }}{% endif %}">
+            </div>
+            <div class="col-md-4">
+                <label for="endDate" class="form-label">结束日期</label>
+                <input type="date" class="form-control" id="endDate" name="end_date" 
+                       value="{% if query_params and query_params.get('end_date') %}{{ query_params.end_date }}{% endif %}">
+            </div>
+            <div class="col-md-8">
+                <label for="keywords" class="form-label">关键词</label>
+                <input type="text" class="form-control" id="keywords" name="keywords" 
+                       placeholder="输入关键词，多个关键词用空格分隔"
+                       value="{% if query_params and query_params.get('keywords') %}{{ query_params.keywords }}{% endif %}">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="fas fa-search me-1"></i>查询
+                </button>
+                <button type="reset" class="btn btn-outline-secondary">
+                    <i class="fas fa-undo me-1"></i>重置
+                </button>
+            </div>
+            <!-- 隐藏的分页参数字段 -->
+            <input type="hidden" name="page" id="formPage" value="{% if pagination %}{{ pagination.page }}{% else %}1{% endif %}">
+            <input type="hidden" name="per_page" id="formPerPage" value="{% if pagination %}{{ pagination.per_page }}{% else %}20{% endif %}">
+        </form>
+    </div>
+</div>
+
+<!-- 查询结果表格 -->
+<div class="card">
+    <div class="card-header bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-list me-1"></i>对话记录
+            </div>
+            {% if conversations %}
+            <div>
+                {% if pagination %}
+                共 <span class="fw-bold">{{ pagination.total_count }}</span> 条记录
+                <span class="text-muted">（第 {{ ((pagination.page - 1) * pagination.per_page) + 1 }} - {{ min(pagination.page * pagination.per_page, pagination.total_count) }} 条）</span>
+                {% else %}
+                共 <span class="fw-bold">{{ conversations|length }}</span> 条记录
+                {% endif %}
+                
+                <!-- 导出按钮 -->
+                <div class="dropdown d-inline-block ms-2">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="exportDropdown" 
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-download me-1"></i>导出
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                        <li>
+                            <form action="{{ url_for('export_conversations') }}" method="post" class="dropdown-item-form">
+                                <input type="hidden" name="export_format" value="csv">
+                                <button type="submit" class="dropdown-item">
+                                    <i class="fas fa-file-csv me-2"></i>CSV格式
+                                </button>
+                            </form>
+                        </li>
+                        <li>
+                            <form action="{{ url_for('export_conversations') }}" method="post" class="dropdown-item-form">
+                                <input type="hidden" name="export_format" value="excel">
+                                <button type="submit" class="dropdown-item">
+                                    <i class="fas fa-file-excel me-2"></i>Excel格式
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>会话ID</th>
+                        <th>药检员</th>
+                        <th>开始时间</th>
+                        <th>结束时间</th>
+                        <th>消息数量</th>
+                        <th>主要关键词</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if conversations %}
+                    {% for conv in conversations %}
+                    <tr class="conversation-row" data-id="{{ conv.id }}">
+                        <td>{{ conv.id }}</td>
+                        <td>{% if conv.inspector_id %}{{ conv.inspector_id }} - {% endif %}{{ conv.inspector_name }}</td>
+                        <td>{{ conv.start_time }}</td>
+                        <td>{{ conv.end_time if conv.end_time else '进行中' }}</td>
+                        <td>{{ conv.message_count }}</td>
+                        <td>{{ conv.keywords if conv.keywords else conv.context_topic if conv.context_topic else '无' }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-primary view-conversation" 
+                                    data-bs-toggle="modal" data-bs-target="#conversationDetailsModal" 
+                                    data-id="{{ conv.id }}">
+                                <i class="fas fa-eye me-1"></i>查看
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">暂无对话记录数据</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 分页控件 -->
+    {% if pagination and pagination.total_count > 0 %}
+    <div class="card-footer bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <label class="me-2">每页显示：</label>
+                <select class="form-select form-select-sm d-inline-block" style="width: auto;" id="perPageSelect">
+                    <option value="10" {% if pagination.per_page == 10 %}selected{% endif %}>10条</option>
+                    <option value="20" {% if pagination.per_page == 20 %}selected{% endif %}>20条</option>
+                    <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50条</option>
+                    <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100条</option>
+                </select>
+            </div>
+            {% if pagination.total_pages > 1 %}
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item {% if pagination.page == 1 %}disabled{% endif %}">
+                        {% if pagination.page > 1 %}
+                        {% if query_params %}
+                        <a class="page-link page-link-btn" href="javascript:void(0)" data-page="{{ pagination.page - 1 }}">上一页</a>
+                        {% else %}
+                        <a class="page-link" href="{{ url_for('conversation_search_page', page=pagination.page-1, per_page=pagination.per_page) }}">上一页</a>
+                        {% endif %}
+                        {% else %}
+                        <span class="page-link">上一页</span>
+                        {% endif %}
+                    </li>
+                    
+                    {% for p in range(max(1, pagination.page - 2), min(pagination.total_pages + 1, pagination.page + 3)) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        {% if query_params %}
+                        <a class="page-link page-link-btn" href="javascript:void(0)" data-page="{{ p }}">{{ p }}</a>
+                        {% else %}
+                        <a class="page-link" href="{{ url_for('conversation_search_page', page=p, per_page=pagination.per_page) }}">{{ p }}</a>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                    
+                    <li class="page-item {% if pagination.page == pagination.total_pages %}disabled{% endif %}">
+                        {% if pagination.page < pagination.total_pages %}
+                        {% if query_params %}
+                        <a class="page-link page-link-btn" href="javascript:void(0)" data-page="{{ pagination.page + 1 }}">下一页</a>
+                        {% else %}
+                        <a class="page-link" href="{{ url_for('conversation_search_page', page=pagination.page+1, per_page=pagination.per_page) }}">下一页</a>
+                        {% endif %}
+                        {% else %}
+                        <span class="page-link">下一页</span>
+                        {% endif %}
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 详情查看模态框 -->
+<div class="modal fade" id="conversationDetailsModal" tabindex="-1" aria-labelledby="conversationDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="conversationDetailsModalLabel">
+                    <i class="fas fa-comments me-2"></i>对话详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="conversation-info mb-3">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">会话ID</dt>
+                                <dd class="col-sm-8" id="modalConversationId"></dd>
+                                
+                                <dt class="col-sm-4">药检员</dt>
+                                <dd class="col-sm-8" id="modalInspectorName"></dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">开始时间</dt>
+                                <dd class="col-sm-8" id="modalStartTime"></dd>
+                                
+                                <dt class="col-sm-4">结束时间</dt>
+                                <dd class="col-sm-8" id="modalEndTime"></dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6 class="mb-3">消息记录</h6>
+                <div class="conversation-messages" id="conversationMessages">
+                    <!-- 消息将动态填充 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_scripts %}
+{{ super() }}
+<script>
+    $(document).ready(function() {
+        // 查看对话详情
+        $('.view-conversation').click(function() {
+            const conversationId = $(this).data('id');
+            
+            // 清空消息区域
+            $('#conversationMessages').html('<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">加载中...</span></div><p class="mt-2">加载消息中，请稍候...</p></div>');
+            
+            // 加载对话数据（AJAX请求）
+            $.getJSON(`/conversations/${conversationId}`, function(data) {
+                // 填充对话基本信息
+                $('#modalConversationId').text(data.conversation.id);
+                // 显示药检员ID和姓名
+                const inspectorDisplay = data.conversation.inspector_id 
+                    ? `${data.conversation.inspector_id} - ${data.conversation.inspector_name}`
+                    : data.conversation.inspector_name;
+                $('#modalInspectorName').text(inspectorDisplay);
+                $('#modalStartTime').text(data.conversation.start_time);
+                $('#modalEndTime').text(data.conversation.end_time);
+                
+                // 填充消息记录
+                $('#conversationMessages').empty();
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(function(message) {
+                        let messageClass = message.role === 'inspector' ? 'bg-light' : 'bg-primary text-white';
+                        let sender = message.role === 'inspector' ? '药检员' : '系统';
+                        let timestamp = new Date(message.timestamp).toLocaleString();
+                        
+                        const messageHtml = `
+                        <div class="message-item mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span><strong>${sender}</strong></span>
+                                <small class="text-muted">${timestamp}</small>
+                            </div>
+                            <div class="message-content p-3 rounded ${messageClass}">
+                                ${message.content.replace(/\n/g, '<br>')}
+                            </div>
+                        </div>
+                        `;
+                        
+                        $('#conversationMessages').append(messageHtml);
+                    });
+                } else {
+                    $('#conversationMessages').html('<p class="text-center text-muted">暂无消息记录</p>');
+                }
+            }).fail(function() {
+                $('#conversationMessages').html('<p class="text-center text-danger">加载消息失败，请重试</p>');
+            });
+        });
+        
+        // 表单验证
+        $('#searchForm').submit(function(event) {
+            const startDate = $('#startDate').val();
+            const endDate = $('#endDate').val();
+            
+            if (startDate && endDate && startDate > endDate) {
+                event.preventDefault();
+                if (typeof window.showToast === 'function') {
+                    window.showToast('开始日期不能晚于结束日期！', 'error');
+                } else {
+                    alert('开始日期不能晚于结束日期！');
+                }
+                return false;
+            }
+        });
+        
+        // 刷新按钮
+        $('#refreshButton').click(function() {
+            location.reload();
+        });
+        
+        // 每页记录数选择器 - 保留查询条件并重新提交表单
+        $('#perPageSelect').change(function() {
+            const perPage = $(this).val();
+            // 检查当前URL路径，如果是在搜索结果页面，应该提交表单
+            const currentPath = window.location.pathname;
+            const isSearchPage = currentPath.includes('/conversations/search') || 
+                                currentPath === '/conversations/search';
+            
+            // 检查是否有查询条件（通过检查表单字段是否有值）
+            const hasQueryParams = $('#inspectorSelect').val() || 
+                                   $('#startDate').val() || 
+                                   $('#endDate').val() || 
+                                   $('#keywords').val();
+            
+            // 如果当前在搜索结果页面或有查询条件，提交表单（POST）
+            if (isSearchPage || hasQueryParams) {
+                // 有查询条件时，更新隐藏字段并提交表单以保留查询条件
+                $('#formPerPage').val(perPage);
+                $('#formPage').val('1'); // 切换每页记录数时回到第一页
+                $('#searchForm').submit();
+            } else {
+                // 没有查询条件时，跳转到conversations页面（GET请求）
+                const baseUrl = '{{ url_for("conversation_search_page") }}';
+                const urlParams = new URLSearchParams();
+                urlParams.set('per_page', perPage);
+                urlParams.set('page', '1'); // 切换每页记录数时回到第一页
+                window.location.href = baseUrl + '?' + urlParams.toString();
+            }
+        });
+        
+        // 重置按钮 - 自定义重置逻辑，清空所有查询条件
+        $('button[type="reset"]').click(function(e) {
+            e.preventDefault(); // 阻止默认的reset行为
+            // 清空所有表单字段
+            $('#inspectorSelect').val('');
+            $('#startDate').val('');
+            $('#endDate').val('');
+            $('#keywords').val('');
+            // 重置分页参数
+            $('#formPerPage').val('20'); // 默认每页20条
+            $('#formPage').val('1'); // 回到第一页
+            // 如果有查询结果，重新加载页面以显示默认数据
+            if ($('.conversation-row').length > 0) {
+                window.location.href = '{{ url_for("conversation_search_page") }}';
+            }
+        });
+        
+        // 分页链接点击事件 - 保留查询条件并提交表单
+        $(document).on('click', '.page-link-btn', function(e) {
+            e.preventDefault();
+            const page = $(this).data('page');
+            if (page) {
+                $('#formPage').val(page);
+                $('#searchForm').submit();
+            }
+        });
+    });
+</script>
+
+<style>
+    /* 对话详情模态框样式 */
+    .conversation-messages {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .message-content {
+        word-break: break-word;
+    }
+    
+    /* 导出表单样式 */
+    .dropdown-item-form {
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* 分页激活状态样式 */
+    .pagination .page-item.active .page-link {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: #fff;
+        z-index: 3;
+    }
+    
+    .pagination .page-item.active .page-link:hover,
+    .pagination .page-item.active .page-link:focus {
+        background-color: #0b5ed7;
+        border-color: #0a58ca;
+        color: #fff;
+    }
+</style>
+{% endblock %}
