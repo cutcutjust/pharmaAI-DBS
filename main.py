@@ -9,12 +9,14 @@
     python main.py
     
     # 带命令行参数运行
-    python main.py --init-db     # 初始化数据库（创建表和索引）
-    python main.py --run-web     # 仅运行Web应用
-    python main.py --run-tests   # 运行系统测试
+    python main.py --init-db            # 初始化数据库（创建表和索引）
+    python main.py --run-web            # 仅运行Web应用
+    python main.py --run-tests          # 运行常规测试（CRUD、事务、并发）
+    python main.py --run-extreme-tests  # 运行极端条件压力测试
     
     # 示例：初始化并启动
     python main.py --init-db --run-web
+    python main.py --run-tests --run-web
 
 主要功能:
     - main(): 
@@ -27,7 +29,10 @@
         启动Web应用
         
     - run_tests(): 
-        运行系统测试
+        运行常规系统测试（不包括极端测试）
+        
+    - run_extreme_tests(): 
+        运行极端条件压力测试
         
     - parse_arguments(): 
         解析命令行参数
@@ -75,16 +80,22 @@ def main():
         if args.run_tests:
             success = run_tests()
             if not success and not args.run_web:
-                logger.error("测试失败，终止运行")
+                logger.error("常规测试失败，终止运行")
                 sys.exit(1)
         
-        if args.run_web or (not any([args.init_db, args.run_tests])):
+        if args.run_extreme_tests:
+            success = run_extreme_tests()
+            if not success and not args.run_web:
+                logger.error("极端测试失败，终止运行")
+                sys.exit(1)
+        
+        if args.run_web or (not any([args.init_db, args.run_tests, args.run_extreme_tests])):
             # 如果没有指定任何参数，默认运行Web应用
             run_web_application(host=args.host, port=args.port, debug=args.debug)
         
         # 如果只执行了数据库初始化，打印系统信息
         if args.init_db:
-            if not args.run_web and not args.run_tests:
+            if not args.run_web and not args.run_tests and not args.run_extreme_tests:
                 print_system_info()
     
     except Exception as e:
@@ -132,22 +143,68 @@ def run_web_application(host='0.0.0.0', port=5000, debug=False):
 
 @log_execution_time
 def run_tests():
-    """运行系统测试
+    """运行常规系统测试（不包括极端测试）
     
     Returns:
         bool: 测试是否全部通过
     """
-    logger.info("开始运行系统测试...")
+    logger.info("开始运行常规系统测试...")
     try:
-        suite = unittest.defaultTestLoader.discover('tests')
+        # 创建测试套件，只包含常规测试
+        suite = unittest.TestSuite()
+        
+        # 导入常规测试模块
+        from tests.test_crud import TestCRUDOperations
+        from tests.test_transaction import TestTransactionMechanism
+        from tests.test_concurrent import TestConcurrentAccess
+        
+        # 添加常规测试用例
+        suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestCRUDOperations))
+        suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestTransactionMechanism))
+        suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestConcurrentAccess))
+        
+        # 运行测试
         result = unittest.TextTestRunner(verbosity=2).run(suite)
+        
         if result.wasSuccessful():
-            logger.info("所有测试通过")
+            logger.info("所有常规测试通过")
         else:
-            logger.warning("部分测试未通过")
+            logger.warning("部分常规测试未通过")
         return result.wasSuccessful()
     except Exception as e:
-        logger.error(f"系统测试运行失败: {str(e)}")
+        logger.error(f"常规测试运行失败: {str(e)}")
+        return False
+
+@log_execution_time
+def run_extreme_tests():
+    """运行极端条件压力测试
+    
+    Returns:
+        bool: 测试是否全部通过
+    """
+    logger.info("开始运行极端条件压力测试...")
+    logger.warning("警告：极端测试将对系统造成很大压力，建议在专门的测试环境中运行")
+    
+    try:
+        # 创建测试套件，只包含极端测试
+        suite = unittest.TestSuite()
+        
+        # 导入极端测试模块
+        from tests.test_extreme import TestExtremeConditions
+        
+        # 添加极端测试用例
+        suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestExtremeConditions))
+        
+        # 运行测试
+        result = unittest.TextTestRunner(verbosity=2).run(suite)
+        
+        if result.wasSuccessful():
+            logger.info("所有极端测试通过")
+        else:
+            logger.warning("部分极端测试未通过")
+        return result.wasSuccessful()
+    except Exception as e:
+        logger.error(f"极端测试运行失败: {str(e)}")
         return False
 
 def parse_arguments():
@@ -160,7 +217,8 @@ def parse_arguments():
     
     parser.add_argument("--init-db", action="store_true", help="初始化数据库（创建表和索引）")
     parser.add_argument("--run-web", action="store_true", help="运行Web应用")
-    parser.add_argument("--run-tests", action="store_true", help="运行系统测试")
+    parser.add_argument("--run-tests", action="store_true", help="运行常规系统测试（不包括极端测试）")
+    parser.add_argument("--run-extreme-tests", action="store_true", help="运行极端条件压力测试")
     
     # Web应用参数
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Web应用主机地址（默认0.0.0.0）")
