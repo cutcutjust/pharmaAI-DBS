@@ -284,8 +284,6 @@ def print_startup_banner():
     ║                                                       ║
     ║  PharmaAI - AI-Powered Pharmacopoeia System           ║
     ║                                                       ║
-    ║  数据库系统原理课程项目                                 ║
-    ║                                                       ║
     ╚═══════════════════════════════════════════════════════╝
     """
     print(banner)
